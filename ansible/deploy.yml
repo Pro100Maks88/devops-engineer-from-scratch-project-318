@@ -1,0 +1,102 @@
+---
+- name: Prepare server and deploy application
+  hosts: webservers
+  become: true
+  vars:
+    app_name: bulletins
+    docker_image: golovinmd/project-devops-deploy:latest
+    container_name: "{{ app_name }}-container"
+    app_dir: /home/golovinmd/bulletins
+    env_file_path: "{{ app_dir }}/.env"
+
+  tasks:
+    
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - python3-docker
+        state: present
+
+    - name: Add Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: Install Docker
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add user to docker group
+      ansible.builtin.user:
+        name: golovinmd
+        groups: docker
+        append: yes
+
+  
+    - name: Ensure app directory exists
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: golovinmd
+        group: golovinmd
+
+    - name: Copy .env file to server
+      ansible.builtin.copy:
+        src: .env
+        dest: "{{ env_file_path }}"
+        owner: golovinmd
+        group: golovinmd
+        mode: '0600'
+
+    - name: Stop and remove existing container if exists
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+
+    - name: Pull latest image
+      community.docker.docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+
+    - name: Run new container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        restart_policy: always
+        pull: false
+        ports:
+          - "8080:8080"
+          - "9090:9090"
+        env_file: "{{ env_file_path }}"
+        log_driver: json-file
+        log_options:
+          max-size: "10m"
+          max-file: "3"
