@@ -1,0 +1,27 @@
+- name: Install nginx and htpasswd tooling
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - apache2-utils
+    state: present
+    update_cache: true
+
+- name: Create htpasswd file for metrics endpoints
+  ansible.builtin.shell: |
+    set -o pipefail
+    htpasswd -b -c /etc/nginx/.htpasswd-metrics {{ metrics_basic_auth_user }} {{ metrics_basic_auth_password }}
+  args:
+    creates: /etc/nginx/.htpasswd-metrics
+    executable: /bin/bash
+
+- name: Deploy metrics reverse proxy config
+  ansible.builtin.template:
+    src: metrics.conf.j2
+    dest: /etc/nginx/conf.d/metrics.conf
+  notify: Reload nginx
+
+- name: Ensure nginx is enabled and running
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: true

@@ -1,0 +1,13 @@
+# Приложение
+app_management_port: 9090
+app_port: 8080
+
+# Node Exporter
+node_exporter_port: 9100
+
+# Nginx reverse proxy
+metrics_nginx_port: 80
+
+# Базовая авторизация для /actuator/*
+metrics_basic_auth_user: admin
+metrics_basic_auth_password: "{{ lookup('env', 'METRICS_PASSWORD') }}"

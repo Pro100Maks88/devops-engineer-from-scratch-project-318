@@ -9,8 +9,12 @@
     app_dir: /home/golovinmd/bulletins
     env_file_path: "{{ app_dir }}/.env"
 
+  roles:
+    - node_exporter
+    - nginx
+
   tasks:
-    
+
     - name: Update apt cache
       ansible.builtin.apt:
         update_cache: yes
@@ -59,7 +63,6 @@
         groups: docker
         append: yes
 
-  
     - name: Ensure app directory exists
       ansible.builtin.file:
         path: "{{ app_dir }}"
@@ -93,8 +96,8 @@
         restart_policy: always
         pull: false
         ports:
-          - "8080:8080"
-          - "9090:9090"
+          - "8080:8080"             
+          - "127.0.0.1:9090:9090"   
         env_file: "{{ env_file_path }}"
         log_driver: json-file
         log_options:
