@@ -50,7 +50,7 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 
 Пример записи в логе:
 
-```bash
+```json
 {"time":"2026-11-25T13:36:20+00:00","remote_addr":"37.128.243.198","request":"GET /actuator/prometheus HTTP/1.1","status":200,"body_bytes_sent":21632,"upstream_addr":"127.0.0.1:9090","upstream_response_time":"0.054","http_user_agent":"curl/8.9.1"}
 ```
 ## Метрики для Prometheus
