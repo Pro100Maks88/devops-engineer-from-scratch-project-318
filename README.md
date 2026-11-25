@@ -38,3 +38,14 @@
 ```bash
 git clone https://github.com/Pro100Maks88/devops-engineer-from-scratch-project-318.git
 cd devops-engineer-from-scratch-project-318
+
+Перед запуском необходимо подготовить файл с секретами:
+
+cp ansible/.env.example ansible/.env
+
+(Если файла .env.example нет, создайте ansible/.env вручную и пропишите в нём переменные согласно документации проекта).
+
+Заполните ansible/.env данными вашего окружения (IP, пользователь, пароли).
+
+Команды запуска
+Все операции выполняются через Makefile в корне проекта:
