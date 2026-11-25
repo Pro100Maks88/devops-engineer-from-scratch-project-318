@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 User=node_exporter
-ExecStart=/usr/local/bin/node_exporter --web.listen-address=:{{ node_exporter_port }}
+ExecStart=/usr/local/bin/node_exporter --web.listen-address=:{{ node_exporter_port }} --collector.systemd --collector.systemd.unit-whitelist=(nginx|node_exporter|docker).service
 Restart=always
 RestartSec=5
 

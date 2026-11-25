@@ -4,12 +4,17 @@ log_format metrics_json escape=json
   '"upstream_addr":"$upstream_addr","upstream_response_time":"$upstream_response_time",'
   '"http_user_agent":"$http_user_agent"}';
 
+map $status $log_error {
+    default 0;
+    ~^[45] 1;
+}
+
 server {
     listen {{ metrics_nginx_port }};
     server_name _;
 
     access_log /var/log/nginx/metrics_access.log metrics_json;
-    error_log /var/log/nginx/metrics_error.log;
+    access_log /var/log/nginx/metrics_error.log metrics_json if=$log_error;
 
     location /actuator/ {
         auth_basic "Metrics";

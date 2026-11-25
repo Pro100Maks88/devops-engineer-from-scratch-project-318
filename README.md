@@ -56,8 +56,13 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 ## Метрики для Prometheus
 
 Метрики поступают из двух источников:
+
 - **Spring Boot Actuator** (Micrometer) — эндпоинт `/actuator/prometheus` за Nginx с Basic-аутентификацией;
 - **node_exporter** — системные метрики ВМ (роль `node_exporter` в Ansible).
+
+Обязательные категории метрик по заданию: **CPU load, память, диски, сеть,
+процессы, системные сервисы** — они покрыты метриками `node_exporter` ниже;
+метрики приложения отражают работу JVM, HTTP и пула соединений с БД.
 
 ### Метрики приложения (Spring Boot / Micrometer)
 
@@ -83,6 +88,9 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 | `node_memory_MemAvailable_bytes` | Gauge | Доступная память | Алерт при падении ниже порога — риск OOM-killer |
 | `node_filesystem_avail_bytes` | Gauge | Свободное место на ФС (тег `mountpoint`) | Заполненный диск = остановка приложения и БД |
 | `node_network_receive_bytes_total` | Counter | Принятые байты по сетевым интерфейсам | Аномальный трафик и его распределение по интерфейсам |
+| `node_procs_running` | Gauge | Число процессов в состоянии running | Очередь к CPU: стабильно больше числа ядер — нехватка процессора |
+| `node_procs_blocked` | Gauge | Число заблокированных процессов (ожидают I/O) | Рост — узкое место в диске или сети, синхрон с `iowait` |
+| `node_systemd_unit_state` | Gauge | Состояние systemd-юнитов (тег `name`, 1 = active) | Падение нужного юнита (`nginx`, `docker`, `node_exporter`) — мгновенный сигнал о сбое сервиса |
 
 ### Порядок сбора
 
@@ -94,6 +102,7 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 
 
 ## Где лежат плейбуки
+
 Плейбуки Ansible расположены в директории `ansible/`:
 
 - `ansible/deploy.yml` — основной плейбук для подготовки сервера и деплоя приложения;
@@ -101,6 +110,7 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 - `ansible/.env` — переменные окружения (секреты), не попадают в репозиторий (см. `.gitignore`).
 
 ## Установка
+
 ```bash
 git clone https://github.com/Pro100Maks88/devops-engineer-from-scratch-project-318.git
 cd devops-engineer-from-scratch-project-318
@@ -124,6 +134,7 @@ make health    # Проверка работоспособности серви�
 make metrics   # Проверка экспорта метрик Prometheus (curl к /actuator/prometheus)
 ```
 ## Примеры проверки работы
+
 После выполнения make deploy проверьте доступность сервиса:
 
 ```bash
@@ -148,7 +159,7 @@ curl -s http://127.0.0.1:9090/actuator/health
 
 curl -s http://127.0.0.1:9100/metrics | head
 # Ожидается: системные метрики node_exporter
-
+```
 
 Swagger UI доступен по адресу: http://130.193.58.173:8080/swagger-ui/index.html
 
