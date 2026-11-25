@@ -133,6 +133,22 @@ curl http://130.193.58.173:8080/api/bulletins
 curl http://130.193.58.173:8080/swagger-ui/index.html
 # Ожидается страница Swagger UI
 ```
+## Проверка management-порта локально (на сервере)
+
+Management-порт 9090 слушает только 127.0.0.1, поэтому проверка выполняется внутри ВМ:
+
+```bash
+ssh golovinmd@130.193.58.173
+
+curl -s http://127.0.0.1:9090/actuator/prometheus | head
+# Ожидается: текст в формате Prometheus exposition (# HELP ... # TYPE ...)
+
+curl -s http://127.0.0.1:9090/actuator/health
+# Ожидается: {"groups":["liveness","readiness"],"status":"UP"}
+
+curl -s http://127.0.0.1:9100/metrics | head
+# Ожидается: системные метрики node_exporter
+
 
 Swagger UI доступен по адресу: http://130.193.58.173:8080/swagger-ui/index.html
 
