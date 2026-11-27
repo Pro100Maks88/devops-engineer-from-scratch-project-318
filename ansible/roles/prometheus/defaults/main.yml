@@ -1,0 +1,3 @@
+prometheus_config_dir: /opt/prometheus/config
+prometheus_data_dir: /opt/prometheus/data
+prometheus_port: 9090

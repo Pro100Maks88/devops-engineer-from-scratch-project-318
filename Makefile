@@ -21,3 +21,8 @@ metrics:
 
 node-metrics:
 	ssh $(SERVER) "curl -s http://localhost:9100/metrics | head -20"
+
+monitoring:
+	cd $(ANSIBLE_DIR) && set -a && . ./.env && ansible-playbook -i inventory.ini monitoring.yml
+
+

@@ -1,0 +1,26 @@
+prometheus_retention: "7d"
+prometheus_scrape_interval: "15s"
+prometheus_image: "prom/prometheus:v2.53.0"
+
+app_internal_ip: "10.130.0.15"
+
+metrics_nginx_port: 80
+
+prometheus_targets:
+  - job_name: "node_exporter"
+    targets:
+      - "{{ app_internal_ip }}:9100"
+    labels:
+      host: "app"
+      env: "prod"
+  - job_name: "spring_actuator"
+    metrics_path: "/actuator/prometheus"
+    basic_auth:
+      username: "{{ lookup('env', 'METRICS_USER') | default('admin') }}"
+      password: "{{ lookup('env', 'METRICS_PASSWORD') }}"
+    targets:
+      - "{{ app_internal_ip }}:{{ metrics_nginx_port }}"
+    labels:
+      host: "app"
+      env: "prod"
+      service: "java-app"

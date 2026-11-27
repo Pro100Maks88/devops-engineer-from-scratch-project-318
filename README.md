@@ -15,6 +15,7 @@
 - **Nginx** — обратный прокси, Basic-аутентификация, JSON-логи
 - **Make** — интерфейс для запуска задач
 - **Yandex Cloud** — инфраструктура (ВМ, Managed PostgreSQL, Object Storage)
+- **Prometheus** — сервер наблюдаемости: сбор метрик с приложения и Node Exporter
 
 ## Инфраструктура
 
@@ -26,6 +27,8 @@
 | Метрики Prometheus (через Nginx, Basic Auth) | `http://130.193.58.173/actuator/prometheus` |
 | PostgreSQL | `rc1d-fnumjpmf6ujptcks.mdb.yandexcloud.net:6432`, база `bulletin` |
 | Object Storage | бакет `bulletin-storage` |
+| ВМ мониторинга (Yandex Cloud) | `51.250.39.118` |
+| Prometheus UI | `http://51.250.39.118:9090` |
 
 ## Обратный прокси и защита эндпоинтов
 
@@ -64,6 +67,39 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 процессы, системные сервисы** — они покрыты метриками `node_exporter` ниже;
 метрики приложения отражают работу JVM, HTTP и пула соединений с БД.
 
+## Сервер наблюдаемости (Prometheus)
+
+Prometheus развёрнут на отдельной ВМ (группа `monitoring` в inventory) через Docker
+и Ansible. Контейнер изолирован в Docker-сети `monitoring` — она же в дальнейшем
+свяжет Prometheus с Grafana и Alertmanager. Для конфигов и данных выделены отдельные
+volumes, поэтому при пересоздании контейнера история метрик сохраняется.
+
+Сбор метрик организован так:
+
+- `node_exporter` (на ВМ приложения) — скрейпится по приватной подсети;
+- Spring Actuator — скрейпится через Nginx с Basic-аутентификацией,
+  management-порт 9090 наружу не открыт;
+- таргеты описаны переменными Ansible (`group_vars/monitoring.yml`) и рендерятся
+  в `prometheus.yml` из шаблона Jinja2 — новые экспортеры добавляются правкой
+  vars, без редактирования шаблона.
+
+Пароль для скрейпа берётся из `ansible/.env` (`METRICS_USER`, `METRICS_PASSWORD`).
+
+### Деплой и повторный запуск
+
+```bash
+make monitoring   # раскатка/обновление Prometheus на ВМ мониторинга
+```
+### Проверка таргетов (up == 1)
+
+```bash
+curl -s http://51.250.39.118:9090/api/v1/targets | python3 -m json.tool \
+  | grep -E '"job"|"health"|"lastError"'
+# Ожидается: prometheus, node_exporter, spring_actuator — все "health": "up", lastError пуст
+```
+Или через UI: откройте `http://51.250.39.118:9090/graph`, выполните запрос `up` —
+для всех таргетов значение должно быть `1`.
+
 ### Метрики приложения (Spring Boot / Micrometer)
 
 | Метрика | Тип | Описание | Зачем отслеживать |
@@ -95,11 +131,12 @@ curl -s -u "${METRICS_USER}:${METRICS_PASSWORD}" http://130.193.58.173/actuator/
 ### Порядок сбора
 
 1. node_exporter слушает `9100` на `127.0.0.1`.
-2. Prometheus (на этом же сервере или внешнем) скрейпит:
-   - `http://<host>/actuator/prometheus` — через Nginx с Basic-аутентификацией;
-   - `http://<host>:9100/metrics` — через reverse-proxy по аналогичной схеме.
-3. Retention и правила алертов настраиваются в `prometheus.yml` на следующем этапе.
-
+2. Prometheus на отдельной ВМ `51.250.39.118` (группа `monitoring`) скрейпит:
+   - `http://130.193.58.173/actuator/prometheus` — через Nginx с Basic-аутентификацией;
+   - `10.130.0.15:9100/metrics` — по приватной подсети.
+3. Конфиг рендерится Ansible из шаблона `prometheus.yml.j2`; правила алертинга
+   подключены через `rule_files` (`alert_rules.yml` в репозитории), наполнение
+   правил — на следующих этапах.
 
 ## Где лежат плейбуки
 
@@ -116,9 +153,11 @@ git clone https://github.com/Pro100Maks88/devops-engineer-from-scratch-project-3
 cd devops-engineer-from-scratch-project-318
 ```
 Перед запуском необходимо подготовить файл с секретами:
+
 ```bash
 cp ansible/.env.example ansible/.env
 ```
+
 (Если файла .env.example нет, создайте ansible/.env вручную и пропишите в нём переменные согласно документации проекта.)
 
 Заполните ansible/.env данными вашего окружения (IP, пользователь, пароли).
@@ -126,13 +165,16 @@ cp ansible/.env.example ansible/.env
 ## Команды запуска
 
 Все операции выполняются через Makefile в корне проекта:
+
 ```bash
-make deploy    # Запуск плейбука ansible/deploy.yml: подготовка сервера и раскатка приложения
-make status    # Проверка состояния контейнера на сервере (аналог docker ps)
-make logs      # Просмотр логов приложения
-make health    # Проверка работоспособности сервиса (curl к /actuator/health)
-make metrics   # Проверка экспорта метрик Prometheus (curl к /actuator/prometheus)
+make deploy      # Запуск плейбука ansible/deploy.yml: подготовка сервера и раскатка приложения
+make status      # Проверка состояния контейнера на сервере (аналог docker ps)
+make logs        # Просмотр логов приложения
+make health      # Проверка работоспособности сервиса (curl к /actuator/health)
+make metrics     # Проверка экспорта метрик Prometheus (curl к /actuator/prometheus)
+make monitoring  # Деплой Prometheus на ВМ мониторинга
 ```
+
 ## Примеры проверки работы
 
 После выполнения make deploy проверьте доступность сервиса:
@@ -144,6 +186,7 @@ curl http://130.193.58.173:8080/api/bulletins
 curl http://130.193.58.173:8080/swagger-ui/index.html
 # Ожидается страница Swagger UI
 ```
+
 ## Проверка management-порта локально (на сервере)
 
 Management-порт 9090 слушает только 127.0.0.1, поэтому проверка выполняется внутри ВМ:

@@ -1,0 +1,30 @@
+global:
+  scrape_interval: {{ prometheus_scrape_interval }}
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+{% for job in prometheus_targets %}
+  - job_name: "{{ job.job_name }}"
+{% if job.metrics_path is defined %}
+    metrics_path: "{{ job.metrics_path }}"
+{% endif %}
+{% if job.basic_auth is defined %}
+    basic_auth:
+      username: "{{ job.basic_auth.username }}"
+      password: "{{ job.basic_auth.password }}"
+{% endif %}
+    static_configs:
+      - targets:
+{% for t in job.targets %}
+        - "{{ t }}"
+{% endfor %}
+        labels: {{ job.labels | tojson }}
+{% endfor %}
+
+# Сюда позже добавятся nginx_exporter и loki
